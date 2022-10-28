@@ -1,7 +1,7 @@
 -----FILE LIST-----
 
  - README            : This file
- - CMakeLists.txt    : main CMake configuration file for the Dielectric2 plugin
+ - CMakeLists.txt    : main CMake configuration file for the MutualDipole plugin
  - FindHOOMD.cmake   : script to find a HOOMD-Blue installation to link against
  - Documentation.pdf : Documentation and example calculations for the MutualDipole2 plugin
  - run.py	     : example script to run a simulation with the MutualDipole2 plugin
@@ -9,7 +9,7 @@
 
 -----SOFTWARE REQUIREMENTS-----
 
-The Dielectric2 plugin requires:
+The MutualDipole2 plugin requires:
 
  - HOOMD v2.3.5, compiled with CUDA
  - CUDA-9.2
@@ -34,10 +34,10 @@ $ make -j6
 $ make install
 
 By default, make install will install the plugin into
-/{hoomd-install}/hoomd/Dielectric2
+/{hoomd-install}/hoomd/MutualDipole2
 where {hoomd-install} is the directory that hoomd was 'make install'ed into.
 The plugin can be imported into python as a module with
-import hoomd.Dieletric2
+import hoomd.MutualDipole2
 
 
 
