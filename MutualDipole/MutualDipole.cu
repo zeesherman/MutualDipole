@@ -1,9 +1,9 @@
-#include "cusp/monitor.h"
-#include "cusp/array1d.h"
-#include "cusp/krylov/gmres.h"
+#include <cusp/monitor.h>
+#include <cusp/array1d.h>
+#include <cusp/krylov/gmres.h>
 
 #include <stdio.h>
-#include "MutualDipole2.cuh"
+#include "MutualDipole.cuh"
 #include "PotentialWrapper.cuh"
 #include "hoomd/TextureTools.h"
 
@@ -32,9 +32,9 @@ inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=t
 #define PI 3.1415926535897932f
 
 // Declare textured memory
-scalar4_tex_t fieldtable_tex;
-scalar4_tex_t forcetable_tex;
-scalar4_tex_t pos_tex;
+texture<Scalar4, 1, cudaReadModeElementType> fieldtable_tex;
+texture<Scalar4, 1, cudaReadModeElementType> forcetable_tex;
+texture<Scalar4, 1, cudaReadModeElementType> pos_tex;
 
 // Zero particle forces
 __global__ void zeroforce(unsigned int Ntotal, // total number of particles
@@ -145,7 +145,7 @@ __global__ void spread( Scalar4 *d_pos, // pointer to particle positions
 	// Have the first thread fetch the particle position and store it in shared memory
 	if (thread_offset == 0) {
 
-		Scalar4 tpos = texFetchScalar4(d_pos, pos_tex, idx);
+		Scalar4 tpos = __ldg(d_pos+idx);
 		pos_shared[0].x = tpos.x;
 		pos_shared[0].y = tpos.y;
 		pos_shared[0].z = tpos.z;
@@ -275,7 +275,7 @@ __global__ void contractfield(	Scalar4 *d_pos,  // pointer to particle positions
 	// Initialize the shared memory for the field and have the first thread fetch the particle position and store it in shared memory
 	field[thread_offset] = make_scalar3(0.0,0.0,0.0);
 	if (thread_offset == 0){
-		Scalar4 tpos = texFetchScalar4(d_pos, pos_tex, idx);
+		Scalar4 tpos = __ldg(d_pos+idx);
 		pos_shared[0].x = tpos.x;
 		pos_shared[0].y = tpos.y;
 		pos_shared[0].z = tpos.z;
@@ -381,7 +381,7 @@ __global__ void contractforce(	Scalar4 *d_pos,  // pointer to particle positions
 	// Initialize the shared memory for the force and have the first thread fetch the particle position and store it in shared memory
 	force[thread_offset] = make_scalar3(0.0,0.0,0.0);
 	if (thread_offset == 0){
-		Scalar4 tpos = texFetchScalar4(d_pos, pos_tex, idx);
+		Scalar4 tpos = __ldg(d_pos+idx);
 		pos_shared[0].x = tpos.x;
 		pos_shared[0].y = tpos.y;
 		pos_shared[0].z = tpos.z;
@@ -400,11 +400,11 @@ __global__ void contractforce(	Scalar4 *d_pos,  // pointer to particle positions
 	// Fetch position from shared memory
 	Scalar3 pos = pos_shared[0];
 
-    	// Express the particle position in units of grid spacing.
-    	Scalar3 pos_frac = box.makeFraction(pos);
-    	pos_frac.x *= (Scalar)Nx;
-    	pos_frac.y *= (Scalar)Ny;
-    	pos_frac.z *= (Scalar)Nz;
+    // Express the particle position in units of grid spacing.
+    Scalar3 pos_frac = box.makeFraction(pos);
+    pos_frac.x *= (Scalar)Nx;
+    pos_frac.y *= (Scalar)Ny;
+    pos_frac.z *= (Scalar)Nz;
 
     	// Determine index of the grid node immediately preceeding (in each dimension) the current particle
 	int x = int(pos_frac.x);
@@ -504,7 +504,7 @@ __global__ void real_space_field( 	Scalar4 *d_pos, // pointer to particle positi
 		unsigned int head_i = d_head_list[idx];
 
 		// Current particle position and type
-		Scalar4 postypei = texFetchScalar4(d_pos, pos_tex, idx);
+		Scalar4 postypei = __ldg(d_pos+idx);
 		Scalar3 posi = make_scalar3(postypei.x, postypei.y, postypei.z);
 
 		// Minimum and maximum distances squared for pair calculation
@@ -522,7 +522,7 @@ __global__ void real_space_field( 	Scalar4 *d_pos, // pointer to particle positi
 			if ( neigh_group_idx != -1 ) {
 
 				// Position and type of neighbor particle
-				Scalar4 postypej = texFetchScalar4(d_pos, pos_tex, neigh_idx);
+				Scalar4 postypej = __ldg(d_pos+neigh_idx);
 				Scalar3 posj = make_scalar3(postypej.x, postypej.y, postypej.z);
 
 				// Distance vector between current particle and neighbor
@@ -544,7 +544,7 @@ __global__ void real_space_field( 	Scalar4 *d_pos, // pointer to particle positi
 
 					// Read the table values closest to the current distance
 					int tableind = __scalar2int_rd( Ntable * (dist-drtable)/(rc-drtable) );	
-					Scalar4 entry = texFetchScalar4(d_fieldtable, fieldtable_tex, tableind);
+					Scalar4 entry = __ldg(d_fieldtable+tableind);
 
 					// Linearly interpolate between the table values
 					Scalar lininterp = dist/drtable - tableind - Scalar(1.0);
@@ -609,7 +609,7 @@ __global__ void real_space_force( 	Scalar4 *d_pos, // pointer to particle positi
 		unsigned int head_i = d_head_list[idx];
 
 		// Current particle position and type
-		Scalar4 postypei = texFetchScalar4(d_pos, pos_tex, idx);
+		Scalar4 postypei = __ldg(d_pos+idx);
 		Scalar3 posi = make_scalar3(postypei.x, postypei.y, postypei.z);
 
 		// Minimum and maximum distances squared for pair calculation
@@ -627,7 +627,7 @@ __global__ void real_space_force( 	Scalar4 *d_pos, // pointer to particle positi
 			if ( neigh_group_idx != -1 ) {
 
 				// Position and type of neighbor particle
-				Scalar4 postypej = texFetchScalar4(d_pos, pos_tex, neigh_idx);
+				Scalar4 postypej = __ldg(d_pos+neigh_idx);
 				Scalar3 posj = make_scalar3(postypej.x, postypej.y, postypej.z);
 
 				// Distance vector between current particle and neighbor
@@ -651,7 +651,7 @@ __global__ void real_space_force( 	Scalar4 *d_pos, // pointer to particle positi
 	
 					// Read the table values closest to the current distance
 					int tableind = __scalar2int_rd( Ntable * (dist-drtable)/(rc-drtable) );	
-					Scalar4 entry = texFetchScalar4(d_forcetable, forcetable_tex, tableind);
+					Scalar4 entry = __ldg(d_forcetable+tableind);
 
 					// Linearly interpolate between the table values
 					Scalar lininterp = dist/drtable - tableind - Scalar(1.0);
@@ -705,16 +705,16 @@ cudaError_t ComputeField(       Scalar4 *d_pos, // pointer to particle positions
  	unsigned int Ngrid = Nx*Ny*Nz;
 
 	// For initialization and scaling, use one thread per grid node
-    	int Nthreads1 = ( Ngrid > block_size ) ? block_size : Ngrid;
-    	int Nblocks1 = ( Ngrid - 1 )/Nthreads1 + 1;
+    int Nthreads1 = ( Ngrid > block_size ) ? block_size : Ngrid;
+    int Nblocks1 = ( Ngrid - 1 )/Nthreads1 + 1;
 
 	// For spreading and contracting, use one P-by-P-by-P block of threads per particle.
 	dim3 Nblocks2(group_size, 1, 1);
 	dim3 Nthreads2(P, P, P);
 
-    	// For the real space calculation, use one thread per particle
-    	int Nblocks3 = group_size/block_size + 1;
-    	int Nthreads3 = block_size;
+    // For the real space calculation, use one thread per particle
+    int Nblocks3 = group_size/block_size + 1;
+    int Nthreads3 = block_size;
 
 	// Precomputed quantities needed for the GPU kernels
 	Scalar quadW = gridh.x*gridh.y*gridh.z; // trapezoidal rule weights
@@ -724,35 +724,35 @@ cudaError_t ComputeField(       Scalar4 *d_pos, // pointer to particle positions
 	Scalar prefac = xiterm*xi/PI*sqrtf(2.0/(PI*eta.x*eta.y*eta.z));  // prefactor for the spreading and contracting exponentials
 	Scalar selfterm = (-1.0+6.0*xi2)/(16.0*PI*sqrt(PI)*xi3) + (1.0 - 2.0*xi2)*exp(-4.0*xi2)/(16.0*PI*sqrt(PI)*xi3) + erfc(2.0*xi)/(4.0*PI); // self term in the potential matrix
 
-    	// Reset the grid values to zero
-    	initialize_grid<<<Nblocks1, Nthreads1>>>(d_gridX,Ngrid);
-    	initialize_grid<<<Nblocks1, Nthreads1>>>(d_gridY,Ngrid);
-    	initialize_grid<<<Nblocks1, Nthreads1>>>(d_gridZ,Ngrid);
+    // Reset the grid values to zero
+    initialize_grid<<<Nblocks1, Nthreads1>>>(d_gridX,Ngrid);
+    initialize_grid<<<Nblocks1, Nthreads1>>>(d_gridY,Ngrid);
+    initialize_grid<<<Nblocks1, Nthreads1>>>(d_gridZ,Ngrid);
 
 	// Spread dipoles from the particles to the grid
 	spread<<<Nblocks2, Nthreads2>>>(d_pos, d_dipole, group_size, d_group_members, box, eta, Nx, Ny, Nz, gridh, P, d_gridX, d_gridY, d_gridZ, xiterm, prefac);
 
 	// Compute the Fourier transform of the gridded data
-    	cufftExecC2C(plan, d_gridX, d_gridX, CUFFT_FORWARD);
-    	cufftExecC2C(plan, d_gridY, d_gridY, CUFFT_FORWARD);
-    	cufftExecC2C(plan, d_gridZ, d_gridZ, CUFFT_FORWARD);
+    cufftExecC2C(plan, d_gridX, d_gridX, CUFFT_FORWARD);
+    cufftExecC2C(plan, d_gridY, d_gridY, CUFFT_FORWARD);
+    cufftExecC2C(plan, d_gridZ, d_gridZ, CUFFT_FORWARD);
 
 	// Scale the grid values
-    	scale<<<Nblocks1, Nthreads1>>>(d_gridk, d_gridX, d_gridY, d_gridZ, Ngrid);
+    scale<<<Nblocks1, Nthreads1>>>(d_gridk, d_gridX, d_gridY, d_gridZ, Ngrid);
 
 	// Inverse Fourier transform the gridded data
-    	cufftExecC2C(plan, d_gridX, d_gridX, CUFFT_INVERSE);
-    	cufftExecC2C(plan, d_gridY, d_gridY, CUFFT_INVERSE);
-    	cufftExecC2C(plan, d_gridZ, d_gridZ, CUFFT_INVERSE);
+    cufftExecC2C(plan, d_gridX, d_gridX, CUFFT_INVERSE);
+    cufftExecC2C(plan, d_gridY, d_gridY, CUFFT_INVERSE);
+    cufftExecC2C(plan, d_gridZ, d_gridZ, CUFFT_INVERSE);
 
 	// Contract the gridded values to the particles to get the wave space contribution to the field
 	contractfield<<<Nblocks2, Nthreads2, 3*(P*P*P+1)*sizeof(float)>>>(d_pos, d_dipole, d_extfield, group_size, d_group_members, box, xi, eta, Nx, Ny, Nz, gridh, P, d_gridX, d_gridY, d_gridZ, xiterm, quadW*prefac);
 
 	// Compute the real space contribution to the field
-    	real_space_field<<<Nblocks3, Nthreads3>>>(d_pos, d_conductivity, d_dipole, d_extfield, group_size, d_group_membership, d_group_members, box, rc, Ntable, drtable, d_fieldtable, d_nlist, d_head_list, d_n_neigh, selfterm); 
+    real_space_field<<<Nblocks3, Nthreads3>>>(d_pos, d_conductivity, d_dipole, d_extfield, group_size, d_group_membership, d_group_members, box, rc, Ntable, drtable, d_fieldtable, d_nlist, d_head_list, d_n_neigh, selfterm); 
 
-    	gpuErrchk(cudaPeekAtLastError());
-    	return cudaSuccess;
+    gpuErrchk(cudaPeekAtLastError());
+    return cudaSuccess;
 }
 
 // Compute the particle dipoles iteratively using GMRES. (called on the host)
@@ -810,7 +810,7 @@ cudaError_t ComputeDipole(	Scalar4 *d_pos, // pointer to particle posisitons
 	cudaMemcpy(d_dipole, d_S, 3*group_size*sizeof(float), cudaMemcpyDeviceToDevice);
 
 	gpuErrchk(cudaPeekAtLastError());
-    	return cudaSuccess;
+    return cudaSuccess;
 }
 
 // Compute particle forces. (called on the host)
@@ -854,16 +854,16 @@ cudaError_t gpu_ComputeForce(   Scalar4 *d_pos, // pointer to particle posisiton
  	unsigned int Ngrid = Nx*Ny*Nz;
 
 	// Tor grid initialization and scaling, use one thread per grid node
-    	int Nthreads1 = ( Ngrid > block_size ) ? block_size : Ngrid;
-    	int Nblocks1 = ( Ngrid - 1 )/Nthreads1 + 1;
+    int Nthreads1 = ( Ngrid > block_size ) ? block_size : Ngrid;
+    int Nblocks1 = ( Ngrid - 1 )/Nthreads1 + 1;
 
 	// For spreading and contracting, use one P-by-P-by-P block of threads per active particle.
 	dim3 Nblocks2(group_size, 1, 1);
 	dim3 Nthreads2(P, P, P);
 
-    	// For updating group membership and the real space calculation, use one thread per active particle
-    	int Nblocks3 = group_size/block_size + 1;
-    	int Nthreads3 = block_size;
+    // For updating group membership and the real space calculation, use one thread per active particle
+    int Nblocks3 = group_size/block_size + 1;
+    int Nthreads3 = block_size;
 
 	// For initializing group membership, use one thread per total particle
 	int Nblocks4 = Ntotal/block_size + 1;
@@ -875,17 +875,17 @@ cudaError_t gpu_ComputeForce(   Scalar4 *d_pos, // pointer to particle posisiton
 	Scalar prefac = xiterm*xi/PI*sqrtf(2.0/(PI*eta.x*eta.y*eta.z));  // prefactor for the spreading and contracting exponentials
 
 	// Handle the real space tables and particle positions as textured memory
-    	fieldtable_tex.normalized = false;
-    	fieldtable_tex.filterMode = cudaFilterModePoint; 
-    	cudaBindTexture(0, fieldtable_tex, d_fieldtable, sizeof(Scalar4) * (Ntable+1));
+    fieldtable_tex.normalized = false;
+    fieldtable_tex.filterMode = cudaFilterModePoint; 
+    cudaBindTexture(0, fieldtable_tex, d_fieldtable, sizeof(Scalar4) * (Ntable+1));
 
 	forcetable_tex.normalized = false;
-    	forcetable_tex.filterMode = cudaFilterModePoint;
-    	cudaBindTexture(0, forcetable_tex, d_forcetable, sizeof(Scalar4) * (Ntable+1));
+    forcetable_tex.filterMode = cudaFilterModePoint;
+    cudaBindTexture(0, forcetable_tex, d_forcetable, sizeof(Scalar4) * (Ntable+1));
 
-    	pos_tex.normalized = false;
-    	pos_tex.filterMode = cudaFilterModePoint;
-    	cudaBindTexture(0, pos_tex, d_pos, sizeof(Scalar4) * Ntotal);
+    pos_tex.normalized = false;
+    pos_tex.filterMode = cudaFilterModePoint;
+    cudaBindTexture(0, pos_tex, d_pos, sizeof(Scalar4) * Ntotal);
 
 	// Update the group membership list
 	initialize_groupmembership<<<Nblocks4, Nthreads4>>>(d_group_membership, Ntotal); // one thread per total particle
@@ -896,39 +896,39 @@ cudaError_t gpu_ComputeForce(   Scalar4 *d_pos, // pointer to particle posisiton
 		ComputeDipole( d_pos, d_conductivity, d_dipole, d_extfield, group_size, d_group_membership, d_group_members, box, block_size, xi, errortol, eta, rc, Nx, Ny, Nz, gridh, P, d_gridk, d_gridX, d_gridY, d_gridZ, plan, Ntable, drtable, d_fieldtable, d_nlist, d_head_list, d_n_neigh);
 	}
 
-    	// Reset the grid values to zero
-    	initialize_grid<<<Nblocks1, Nthreads1>>>(d_gridX,Ngrid);
-    	initialize_grid<<<Nblocks1, Nthreads1>>>(d_gridY,Ngrid);
-    	initialize_grid<<<Nblocks1, Nthreads1>>>(d_gridZ,Ngrid);
+    // Reset the grid values to zero
+    initialize_grid<<<Nblocks1, Nthreads1>>>(d_gridX,Ngrid);
+    initialize_grid<<<Nblocks1, Nthreads1>>>(d_gridY,Ngrid);
+    initialize_grid<<<Nblocks1, Nthreads1>>>(d_gridZ,Ngrid);
 
 	// Spread dipoles from the particles to the grid
 	spread<<<Nblocks2, Nthreads2>>>(d_pos, d_dipole, group_size, d_group_members, box, eta, Nx, Ny, Nz, gridh, P, d_gridX, d_gridY, d_gridZ, xiterm, prefac);
 
-	//  Compute the Fourier transform of the gridded data
-    	cufftExecC2C(plan, d_gridX, d_gridX, CUFFT_FORWARD);
-    	cufftExecC2C(plan, d_gridY, d_gridY, CUFFT_FORWARD);
-    	cufftExecC2C(plan, d_gridZ, d_gridZ, CUFFT_FORWARD);
+	// Compute the Fourier transform of the gridded data
+    cufftExecC2C(plan, d_gridX, d_gridX, CUFFT_FORWARD);
+    cufftExecC2C(plan, d_gridY, d_gridY, CUFFT_FORWARD);
+    cufftExecC2C(plan, d_gridZ, d_gridZ, CUFFT_FORWARD);
 
 	// Scale the grid values
-    	scale<<<Nblocks1, Nthreads1>>>(d_gridk, d_gridX, d_gridY, d_gridZ, Ngrid);
+    scale<<<Nblocks1, Nthreads1>>>(d_gridk, d_gridX, d_gridY, d_gridZ, Ngrid);
 
 	// Inverse Fourier transform the gridded data
-    	cufftExecC2C(plan, d_gridX, d_gridX, CUFFT_INVERSE);
-    	cufftExecC2C(plan, d_gridY, d_gridY, CUFFT_INVERSE);
-    	cufftExecC2C(plan, d_gridZ, d_gridZ, CUFFT_INVERSE);
+    cufftExecC2C(plan, d_gridX, d_gridX, CUFFT_INVERSE);
+    cufftExecC2C(plan, d_gridY, d_gridY, CUFFT_INVERSE);
+    cufftExecC2C(plan, d_gridZ, d_gridZ, CUFFT_INVERSE);
 
 	// Contract the gridded values to the particles to get the wave space contribution to the force
 	contractforce<<<Nblocks2, Nthreads2, 3*(P*P*P+1)*sizeof(float)>>>(d_pos, d_dipole, d_force, group_size, d_group_members, box, eta, Nx, Ny, Nz, gridh, P, d_gridX, d_gridY, d_gridZ, xiterm, quadW*prefac);   
 
 	// Compute the real space contribution to the force
-    	real_space_force<<<Nblocks3, Nthreads3>>>(d_pos, d_dipole, field, gradient, d_force, group_size,  d_group_membership, d_group_members, box, rc, Ntable, drtable, d_forcetable, d_nlist, d_head_list, d_n_neigh);
+    real_space_force<<<Nblocks3, Nthreads3>>>(d_pos, d_dipole, field, gradient, d_force, group_size,  d_group_membership, d_group_members, box, rc, Ntable, drtable, d_forcetable, d_nlist, d_head_list, d_n_neigh);
 
 	// Unbind the textured memory
 	cudaUnbindTexture(fieldtable_tex);
-    	cudaUnbindTexture(forcetable_tex);
-    	cudaUnbindTexture(pos_tex);
+    cudaUnbindTexture(forcetable_tex);
+    cudaUnbindTexture(pos_tex);
 
-    	gpuErrchk(cudaPeekAtLastError());
-    	return cudaSuccess;
+    gpuErrchk(cudaPeekAtLastError());
+    return cudaSuccess;
 }
 
