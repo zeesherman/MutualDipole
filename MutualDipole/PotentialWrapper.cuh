@@ -1,7 +1,5 @@
-#include "MutualDipole2.cuh"
+#include "MutualDipole.cuh"
 #include <stdio.h>
-// #include "TextureTools.h"
-
 #include <cusp/linear_operator.h>
 
 #ifdef WIN32
@@ -66,47 +64,47 @@ public:
 		  const BoxDim& box,
 		  int block_size,
 		  Scalar xi,
-                  Scalar3 eta,
-                  Scalar rc,
-                  const int Nx,
-                  const int Ny,
-                  const int Nz,
-                  Scalar3 gridh,
-                  int P,
+          Scalar3 eta,
+          Scalar rc,
+          const int Nx,
+          const int Ny,
+          const int Nz,
+          Scalar3 gridh,
+          int P,
 		  Scalar4 *d_gridk,
-                  CUFFTCOMPLEX *d_gridX,
-                  CUFFTCOMPLEX *d_gridY,
-                  CUFFTCOMPLEX *d_gridZ,
+          CUFFTCOMPLEX *d_gridX,
+          CUFFTCOMPLEX *d_gridY,
+          CUFFTCOMPLEX *d_gridZ,
 		  cufftHandle plan,
-                  int Ntable,
-                  Scalar drtable,
+          int Ntable,
+          Scalar drtable,
 		  Scalar4 *d_fieldtable,
-                  const unsigned int *d_nlist,
+          const unsigned int *d_nlist,
 		  const unsigned int *d_head_list,
 		  const unsigned int *d_n_neigh)
-                  : super(3*group_size,3*group_size), 
+          : super(3*group_size,3*group_size), 
 		  d_pos(d_pos),
 		  d_conductivity(d_conductivity),
-    		  group_size(group_size),
+          group_size(group_size),
 		  d_group_membership(d_group_membership),
 		  d_group_members(d_group_members),
 		  box(box),
 		  block_size(block_size),
 		  xi(xi),
-                  eta(eta),
-                  rc(rc),
-                  Nx(Nx),
-                  Ny(Ny),
-                  Nz(Nz),
-                  gridh(gridh),
-                  P(P),
+          eta(eta),
+          rc(rc),
+          Nx(Nx),
+          Ny(Ny),
+          Nz(Nz),
+          gridh(gridh),
+          P(P),
 		  d_gridk(d_gridk),
 		  d_gridX(d_gridX),
 		  d_gridY(d_gridY),
 		  d_gridZ(d_gridZ),
-                  plan(plan),
-                  Ntable(Ntable),
-                  drtable(drtable),
+          plan(plan),
+          Ntable(Ntable),
+          drtable(drtable),
 		  d_fieldtable(d_fieldtable),
 		  d_nlist(d_nlist),
 		  d_head_list(d_head_list),
@@ -122,13 +120,12 @@ public:
         float *S_ptr = (float *) thrust::raw_pointer_cast(&S[0]);
         float *E0_ptr = (float *) thrust::raw_pointer_cast(&E0[0]);
 
-	// Cast to a Scalar3 pointer
-	Scalar3 *S_ptr2 = (Scalar3 *) &S_ptr[0];
-	Scalar3 *E0_ptr2 = (Scalar3 *) &E0_ptr[0];
+	    // Cast to a Scalar3 pointer
+	    Scalar3 *S_ptr2 = (Scalar3 *) &S_ptr[0];
+	    Scalar3 *E0_ptr2 = (Scalar3 *) &E0_ptr[0];
 
         // Compute E0 = M*S
-	ComputeField( d_pos, d_conductivity, S_ptr2, E0_ptr2, group_size, d_group_membership, d_group_members, box, block_size, xi, eta, rc, Nx, Ny, Nz, gridh, P, d_gridk, d_gridX, d_gridY, d_gridZ, plan, Ntable, drtable, d_fieldtable, d_nlist, d_head_list, d_n_neigh);
+	    ComputeField( d_pos, d_conductivity, S_ptr2, E0_ptr2, group_size, d_group_membership, d_group_members, box, block_size, xi, eta, rc, Nx, Ny, Nz, gridh, P, d_gridk, d_gridX, d_gridY, d_gridZ, plan, Ntable, drtable, d_fieldtable, d_nlist, d_head_list, d_n_neigh);
 
     }
 };
-

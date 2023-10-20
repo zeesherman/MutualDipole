@@ -3,8 +3,8 @@
 #pragma warning( disable : 4244 )
 #endif
 
-#include "MutualDipole2.h"
-#include "MutualDipole2.cuh"
+#include "MutualDipole.h"
+#include "MutualDipole.cuh"
 #include "PotentialWrapper.cuh"
 #include <stdio.h>
 #include <algorithm>
@@ -15,8 +15,8 @@
 
 using namespace std;
 
-// Constructor for the MutualDipole2 class
-MutualDipole2::MutualDipole2(	std::shared_ptr<SystemDefinition> sysdef, // system this method will act on; must not be NULL
+// Constructor for the MutualDipole class
+MutualDipole::MutualDipole(	std::shared_ptr<SystemDefinition> sysdef, // system this method will act on; must not be NULL
 				std::shared_ptr<ParticleGroup> group, // group of particles in which to compute the force
 			  	std::shared_ptr<NeighborList> nlist, // neighbor list
 				std::vector<float> &conductivity, // particle conductivities
@@ -38,13 +38,13 @@ MutualDipole2::MutualDipole2(	std::shared_ptr<SystemDefinition> sysdef, // syste
 				m_constantdipoleflag(constantdipoleflag),
 				m_t0(t0)
 {
-    m_exec_conf->msg->notice(5) << "Constructing MutualDipole2" << std::endl;
+    m_exec_conf->msg->notice(5) << "Constructing MutualDipole" << std::endl;
 
 	// only one GPU is supported
 	if (!m_exec_conf->isCUDAEnabled())
 	{
-		m_exec_conf->msg->error() << "Creating a MutualDipole2 when CUDA is disabled" << std::endl;
-		throw std::runtime_error("Error initializing MutualDipole2");
+		m_exec_conf->msg->error() << "Creating a MutualDipole when CUDA is disabled" << std::endl;
+		throw std::runtime_error("Error initializing MutualDipole");
 	}
 
 	// Set the field and field gradient
@@ -65,15 +65,15 @@ MutualDipole2::MutualDipole2(	std::shared_ptr<SystemDefinition> sysdef, // syste
 
 }
 
-// Destructor for the MutualDipole2 class
-MutualDipole2::~MutualDipole2() {
+// Destructor for the MutualDipole class
+MutualDipole::~MutualDipole() {
 
-    m_exec_conf->msg->notice(5) << "Destroying MutualDipole2" << std::endl;
+    m_exec_conf->msg->notice(5) << "Destroying MutualDipole" << std::endl;
 	cufftDestroy(m_plan);
 }
 
 // Compute and set parameters needed for the calculations.  This step is computed only once when the MutualDipole class is created or on each call to update_parameters if system parameters change. 
-void MutualDipole2::SetParams() {
+void MutualDipole::SetParams() {
 
 	////// Compute parameters associated with the numerical method.
 
@@ -392,7 +392,7 @@ void MutualDipole2::SetParams() {
 }
 
 // Update the applied external field.  Does not require recomputing tables on the CPU.
-void MutualDipole2::UpdateField(std::vector<float> &field,
+void MutualDipole::UpdateField(std::vector<float> &field,
 				std::vector<float> &gradient)
 {
 
@@ -426,7 +426,7 @@ void MutualDipole2::UpdateField(std::vector<float> &field,
 }
 
 // Update simulation parameters.  Recomputes tables on the CPU.
-void MutualDipole2::UpdateParameters(std::vector<float> &field,
+void MutualDipole::UpdateParameters(std::vector<float> &field,
 				     std::vector<float> &gradient,
 		      		     std::vector<float> &conductivity,
 		      		     std::string fileprefix,
@@ -472,7 +472,7 @@ void MutualDipole2::UpdateParameters(std::vector<float> &field,
 }
 
 // Compute forces on particles
-void MutualDipole2::computeForces(unsigned int timestep) {
+void MutualDipole::computeForces(unsigned int timestep) {
 
 	// access the particle forces (associated with this plugin only; other forces are stored elsewhere)
 	ArrayHandle<Scalar4> d_force(m_force, access_location::device, access_mode::readwrite);
@@ -485,7 +485,7 @@ void MutualDipole2::computeForces(unsigned int timestep) {
 
 	// profile this step
 	if (m_prof)
-		m_prof->push(m_exec_conf, "MutualDipole");
+		m_prof->push(m_exec_conf, "MutualDipole2");
 
 	////// Access all of the needed data
 
@@ -594,7 +594,7 @@ void MutualDipole2::computeForces(unsigned int timestep) {
 }
 
 // Write quantities to file
-void MutualDipole2::OutputData(unsigned int timestep) {
+void MutualDipole::OutputData(unsigned int timestep) {
 
 	// Format the timestep to a string
 	std::ostringstream timestep_str;
@@ -616,7 +616,7 @@ void MutualDipole2::OutputData(unsigned int timestep) {
 
 	// Check that the file opened correctly
         if (!file.good()) {
-                throw std::runtime_error("Error in MutualDipole: unable to open output file.");
+                throw std::runtime_error("Error in MutualDipole2: unable to open output file.");
         }
 
 	////// Write the particle positions to file in global tag order
@@ -678,15 +678,15 @@ void MutualDipole2::OutputData(unsigned int timestep) {
 	file.close();
 }
 
-void export_MutualDipole2(pybind11::module& m)
+void export_MutualDipole(pybind11::module& m)
 {
-    pybind11::class_<MutualDipole2, std::shared_ptr<MutualDipole2>> (m, "MutualDipole2", pybind11::base<ForceCompute>())
+    pybind11::class_<MutualDipole, std::shared_ptr<MutualDipole>> (m, "MutualDipole", pybind11::base<ForceCompute>())
 		.def(pybind11::init< std::shared_ptr<SystemDefinition>, std::shared_ptr<ParticleGroup>, std::shared_ptr<NeighborList>, std::vector<float>&, std::vector<float>&, std::vector<float>&, Scalar, Scalar, std::string, int, int, unsigned int >())
-		.def("SetParams", &MutualDipole2::SetParams)
-		.def("UpdateField", &MutualDipole2::UpdateField)
-		.def("UpdateParameters", &MutualDipole2::UpdateParameters)
-		.def("computeForces", &MutualDipole2::computeForces)
-		.def("OutputData", &MutualDipole2::OutputData)
+		.def("SetParams", &MutualDipole::SetParams)
+		.def("UpdateField", &MutualDipole::UpdateField)
+		.def("UpdateParameters", &MutualDipole::UpdateParameters)
+		.def("computeForces", &MutualDipole::computeForces)
+		.def("OutputData", &MutualDipole::OutputData)
         ;
 }
 

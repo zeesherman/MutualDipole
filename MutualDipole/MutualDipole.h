@@ -10,19 +10,19 @@
 #define CUFFTCOMPLEX cufftComplex
 #endif
 
-#ifndef __MUTUALDIPOLE2_H__
-#define __MUTUALDIPOLE2_H__
+#ifndef __MUTUALDIPOLE_H__
+#define __MUTUALDIPOLE_H__
 
 #ifdef NVCC
 #error This header cannot be compiled by nvcc
 #endif
 
-// Declares the MutualDipole2 class.
-class MutualDipole2 : public ForceCompute {
+// Declares the MutualDipole class.
+class MutualDipole : public ForceCompute {
 
     public:
         // Constructor
-        MutualDipole2(std::shared_ptr<SystemDefinition> sysdef,
+        MutualDipole(std::shared_ptr<SystemDefinition> sysdef,
                       std::shared_ptr<ParticleGroup> group,
 	              std::shared_ptr<NeighborList> nlist,
 		      std::vector<float> &field,
@@ -36,7 +36,7 @@ class MutualDipole2 : public ForceCompute {
 		      unsigned int t0);
 
 	// Destructor
-        virtual ~MutualDipole2();
+        virtual ~MutualDipole();
 
 	// Set parameters needed for the calculations
 	void SetParams();
@@ -105,7 +105,7 @@ class MutualDipole2 : public ForceCompute {
 
     };
 
-// Exports the MutualDipole2 class to python
-void export_MutualDipole2(pybind11::module& m);
+// Exports the MutualDipole class to python
+void export_MutualDipole(pybind11::module& m);
 
 #endif
