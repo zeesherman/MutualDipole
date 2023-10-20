@@ -1,14 +1,14 @@
-# Maintainer: Zachary M. Sherman
+#Maintainer: Zachary M. Sherman
 
-set(COMPONENT_NAME MutualDipole2)
+set(COMPONENT_NAME MutualDipole)
 
 set(_${COMPONENT_NAME}_sources
     module.cc
-    MutualDipole2.cc
+    MutualDipole.cc
     )
 
 set(_${COMPONENT_NAME}_cu_sources
-    MutualDipole2.cu
+    MutualDipole.cu
     )
 
 if (ENABLE_CUDA)
@@ -23,22 +23,16 @@ set_target_properties(_${COMPONENT_NAME} PROPERTIES INSTALL_RPATH "\$ORIGIN/..;\
 endif()
 
 # Find additional libraries to be linked for the plugin
-# find_library( LAPACKE_LIBRARIES lapacke PATHS /usr/local/lapack-3.6.0/lib/ )
-# find_library( LAPACK_LIBRARIES lapack PATHS /usr/local/lapack-3.6.0/lib/ )
-# find_library( BLAS_LIBRARIES blas PATHS /usr/local/lapack-3.6.0/lib/ )
-# find_library( CBLAS_LIBRARIES cblas PATHS /usr/local/lapack-3.6.0/lib/ )
-# if( LAPACKE_LIBRARIES-NOTFOUND )
-#         message(FATAL_ERROR "lapacke libraries not found")
-# endif( LAPACKE_LIBRARIES-NOTFOUND )
-# message(STATUS  "found lapacke libraries: ${LAPACKE_LIBRARIES}")
-# if( LAPACK_LIBRARIES-NOTFOUND )
-#         message(FATAL_ERROR "lapack libraries not found")
-# endif( LAPACK_LIBRARIES-NOTFOUND )
-# message(STATUS  "found lapack libraries: ${LAPACK_LIBRARIES}")
-# set( LAPACK_LIBRARIES ${LAPACKE_LIBRARIES} ${LAPACK_LIBRARIES} ${CBLAS_LIBRARIES}  ${BLAS_LIBRARIES} )
+find_library( AMGXSH_LIBRARY libamgxsh.so)
+if( NOT AMGXSH_LIBRARY )
+        message(FATAL_ERROR "amgxsh library not found")
+endif( NOT AMGXSH_LIBRARY )
+message(STATUS  "Found amgxsh library: ${AMGXSH_LIBRARY}")
+
+set( AMGX_LIBRARIES ${AMGXSH_LIBRARY} )
 
 # link the library to its dependencies
-target_link_libraries(_${COMPONENT_NAME} PRIVATE ${HOOMD_LIBRARIES})
+target_link_libraries(_${COMPONENT_NAME} PRIVATE ${HOOMD_LIBRARIES} ${AMGX_LIBRARIES})
 
 # if we are compiling with MPI support built in, set appropriate
 # compiler/linker flags
